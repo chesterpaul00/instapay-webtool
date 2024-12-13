@@ -1,0 +1,532 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // Import Provider package
+import '../models/transaction_model.dart';
+import '../provider/transaction_provider.dart';
+import '../services/api_services.dart';
+import '../utils/filtration.dart';
+import '../widgets/custom_appbar.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
+import '../widgets/custom_drawer.dart';
+import 'package:intl/intl.dart';
+import '../widgets/summary_cards.dart';
+import '../widgets/transaction_table.dart';
+
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  _DashboardScreenState createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  bool _isAuthenticated = false;
+  String _username = '';
+  late InstapayFilter _instapayFilter;
+  String? startDate;
+  String? endDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthentication();
+    _instapayFilter = InstapayFilter([]);
+    _loadTransactions(context); // Load transactions on screen initialization
+  }
+
+  Future<void> _checkAuthentication() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('accessToken');
+    if (token == null) {
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/login');
+      }
+    } else {
+      setState(() {
+        _isAuthenticated = true;
+      });
+      _loadUsername();
+    }
+  }
+
+  Future<void> _loadUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _username = prefs.getString('username') ?? 'User';
+    });
+  }
+
+  void _showCalendar() {
+    showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2101),
+    ).then((pickedDate) {
+      if (pickedDate != null && pickedDate != DateTime.now()) {}
+    });
+  }
+
+  Future<void> _loadTransactions(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('accessToken');
+    final username = prefs.getString('username') ?? '';
+
+    if (token == null || username.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: User not authenticated')));
+      }
+      return;
+    }
+
+    DateTime now = DateTime.now();
+    String startDate = now.toIso8601String();
+    String endDate = now.toIso8601String();
+
+    try {
+      final transactions = await ApiService.fetchInstapay(
+          startDate: startDate, endDate: endDate);
+
+      print(
+          "Fetched transactions: ${transactions.length}"); // Debug: Print fetched transactions
+
+      transactions.sort((a, b) {
+        DateTime dateA = DateTime.parse(a.transactionDate);
+        DateTime dateB = DateTime.parse(b.transactionDate);
+        return dateB.compareTo(dateA);
+      });
+
+      Provider.of<TransactionProvider>(context, listen: false)
+          .setTransactions(transactions);
+
+      print(
+          "Transactions in provider: ${Provider.of<TransactionProvider>(context, listen: false).filteredTransactions.length}"); // Debug
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error loading transactions: $e')));
+      }
+    }
+  }
+
+  Widget _buildSummaryCards() {
+    return Center(
+      child: SizedBox(
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 15.0,
+          runSpacing: 20.0,
+          children: [
+            SummaryButton(
+              icon: Icons.folder,
+              title: 'All Transactions',
+              count: 0,
+              color: const Color(0xff7b1113),
+              onTap: () {
+                setState(() {
+                  _loadTransactions(context);
+                });
+              },
+            ),
+            SummaryButton(
+              icon: Icons.check,
+              title: 'All Success',
+              count: 0,
+              color: const Color(0xff7b1113),
+              onTap: () {
+                setState(() {
+                  final provider =
+                      Provider.of<TransactionProvider>(context, listen: false);
+                  provider.filterByStatus("SUCCESS");
+                });
+              },
+            ),
+            SummaryButton(
+              icon: Icons.folder_outlined,
+              title: 'All Failed',
+              count: 0,
+              color: const Color(0xff7b1113),
+              onTap: () {
+                final provider =
+                    Provider.of<TransactionProvider>(context, listen: false);
+
+                // Call the provider method to filter by status
+                provider.filterByStatus("FAILED");
+
+                // Optionally, reset pagination or update current page
+                provider.changePage(1);
+
+                print(
+                    "Filtered Transactions: ${provider.filteredTransactions.length}");
+              },
+            ),
+            SummaryButton(
+              icon: Icons.folder_shared_rounded,
+              title: 'Success/Sender',
+              count: 0,
+              color: const Color(0xff7b1113),
+              onTap: () {
+                final provider =
+                    Provider.of<TransactionProvider>(context, listen: false);
+
+                // Filter transactions based on multiple conditions
+                provider.filterByMultipleConditions(
+                    transactionType: "SENDER", status: "SUCCESS");
+
+                // Reset pagination
+                provider.changePage(1);
+
+                print(
+                    "Filtered Transactions: ${provider.filteredTransactions.length}");
+              },
+            ),
+
+            // REVERSE TRANSACTION
+            SummaryButton(
+              icon: Icons.folder_shared_outlined,
+              title: 'Failed/Sender',
+              count: 0,
+              color: const Color(0xff7b1113),
+              onTap: () {
+                final provider =
+                    Provider.of<TransactionProvider>(context, listen: false);
+
+                // Filter transactions for Sender with status Failed
+                provider.filterByMultipleConditions(
+                    transactionType: "SENDER", status: "FAILED");
+
+                provider.changePage(1);
+
+                print(
+                    "Filtered Transactions: ${provider.filteredTransactions.length}");
+              },
+            ),
+
+            SummaryButton(
+              icon: Icons.folder_shared_outlined,
+              title: 'Failed Receiver',
+              count: 0,
+              color: const Color(0xff7b1113),
+              onTap: () {
+                final provider =
+                    Provider.of<TransactionProvider>(context, listen: false);
+
+                // Filter transactions for Receiver with status Failed
+                provider.filterByMultipleConditions(
+                    transactionType: "RECEIVER", status: "FAILED");
+
+                provider.changePage(1);
+
+                print(
+                    "Filtered Transactions: ${provider.filteredTransactions.length}");
+              },
+            ),
+
+            SummaryButton(
+              icon: Icons.sync_alt,
+              title: 'Reversed',
+              count: 0,
+              color: const Color(0xff7b1113),
+              onTap: () {
+                final provider =
+                    Provider.of<TransactionProvider>(context, listen: false);
+
+                // Filter transactions with status Reversed
+                provider.filterByStatus("REVERSED");
+
+                provider.changePage(1);
+
+                print(
+                    "Filtered Transactions: ${provider.filteredTransactions.length}");
+              },
+            ),
+
+            SummaryButton(
+              icon: Icons.error_outline,
+              title: 'DS24',
+              count: 0,
+              color: const Color(0xff7b1113),
+              onTap: () {
+                final provider =
+                    Provider.of<TransactionProvider>(context, listen: false);
+
+                // Filter transactions by reason code DS24
+                provider.filterByReasonCode("DS24");
+
+                provider.changePage(1);
+
+                print(
+                    "Filtered Transactions: ${provider.filteredTransactions.length}");
+              },
+            ),
+
+            SummaryButton(
+              icon: Icons.error_outline,
+              title: '9912',
+              count: 0,
+              color: const Color(0xff7b1113),
+              onTap: () {
+                final provider =
+                    Provider.of<TransactionProvider>(context, listen: false);
+
+                // Filter transactions by reason code 9912
+                provider.filterByReasonCode("9912");
+
+                provider.changePage(1);
+
+                print(
+                    "Filtered Transactions: ${provider.filteredTransactions.length}");
+              },
+            ),
+
+            SummaryButton(
+              icon: Icons.error_outline,
+              title: 'AC01',
+              count: 0,
+              color: const Color(0xff7b1113),
+              onTap: () {
+                final provider =
+                    Provider.of<TransactionProvider>(context, listen: false);
+
+                // Filter transactions by reason code AC01
+                provider.filterByReasonCode("AC01");
+
+                provider.changePage(1);
+
+                print(
+                    "Filtered Transactions: ${provider.filteredTransactions.length}");
+              },
+            ),
+
+            SummaryButton(
+              icon: Icons.clear,
+              title: 'Clear Filter',
+              count: 0, // No count for the clear button
+              color: const Color(0xff7b1113),
+              onTap: () {
+                final provider =
+                    Provider.of<TransactionProvider>(context, listen: false);
+                provider.clearFilters(); // Clear all filters
+
+                print("Filters cleared");
+              },
+            ),
+            // Add other summary buttons...
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransactionTable() {
+    return Consumer<TransactionProvider>(
+      builder: (context, provider, child) {
+        if (provider.isLoading) {
+          return ReusableTransactionTable(
+            title: 'Transaction Details',
+            columns: _buildColumns(),
+            rows: [], // Empty rows while loading
+            isLoading: true,
+          );
+        }
+
+        if (provider.filteredTransactions.isEmpty) {
+          return ReusableTransactionTable(
+            title: 'Transaction Details',
+            columns: _buildColumns(),
+            rows: [],
+            isEmpty: true,
+          );
+        }
+
+        // Pass both filteredTransactions and provider to _generateRows
+        final List<DataRow> rows =
+            _generateRows(provider.filteredTransactions, provider);
+
+        return ReusableTransactionTable(
+          title: 'Transaction Details',
+          columns: _buildColumns(),
+          rows: rows,
+          currentPage: provider.currentPage,
+          totalPages: provider.totalPages,
+          onPreviousPage: () => provider.changePage(provider.currentPage - 1),
+          onNextPage: () => provider.changePage(provider.currentPage + 1),
+          onExport: provider.exportToCSV,
+        );
+      },
+    );
+  }
+
+  List<DataColumn> _buildColumns() {
+    return [
+      const DataColumn(label: Text('Date')),
+      const DataColumn(label: Text('Type')),
+      const DataColumn(label: Text('Instruction Id')),
+      const DataColumn(label: Text('Reference Id')),
+      const DataColumn(label: Text('Local Instrument')),
+      const DataColumn(label: Text('Reason Code')),
+      const DataColumn(label: Text('Description')),
+      const DataColumn(label: Text('Amount')),
+      const DataColumn(label: Text('Status')),
+      const DataColumn(label: Text('Action'))
+    ];
+  }
+
+  List<DataRow> _generateRows(
+      List<instapayModel> filteredTransactions, TransactionProvider provider) {
+    print("Generating rows...");
+
+    const int itemsPerPage = 10;
+    final int startIndex = (provider.currentPage - 1) * itemsPerPage;
+
+    print('Start Index: $startIndex');
+    print('Rows to display: ${filteredTransactions.length}');
+
+    return filteredTransactions
+        .skip(startIndex)
+        .take(itemsPerPage)
+        .map((transaction) {
+      print('Adding row for transaction: ${transaction.transactionDate}');
+      return DataRow(
+        cells: [
+          DataCell(SelectableText(transaction.transactionDate ?? '-')),
+          DataCell(SelectableText(transaction.transactionType ?? '-')),
+          DataCell(SelectableText(transaction.instructionId ?? '-')),
+          DataCell(SelectableText(transaction.referenceId ?? '-')),
+          DataCell(SelectableText(transaction.localInstrument ?? '-')),
+          DataCell(SelectableText(transaction.reasonCode ?? '-')),
+          DataCell(SizedBox(
+            width: 150.0,
+            child: SelectableText(transaction.description ?? '-'),
+          )),
+          DataCell(SelectableText(transaction.amount?.toString() ?? '-')),
+          DataCell(SelectableText(transaction.status ?? '-')),
+          DataCell(Icon(Icons.info_outline)),
+        ],
+      );
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => TransactionProvider(),
+      child: Scaffold(
+        appBar: CustomAppBar(
+          title: '',
+          height: 68.0,
+          showGradient: true,
+          actions: null,
+          leading: null,
+          username: _username,
+        ),
+        drawer: CustomDrawer(
+          username: _username.isNotEmpty ? _username : "Guest",
+          onLogout: () async {
+            final shouldLogout = await showDialog<bool>(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: Text('Confirm Logout'),
+                  content: Text('Are you sure you want to log out?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(true);
+                      },
+                      child: Text('Logout'),
+                    ),
+                  ],
+                );
+              },
+            );
+            if (shouldLogout == true) {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('accessToken');
+              await prefs.remove('username');
+              if (mounted) {
+                Navigator.pushReplacementNamed(context, '/login');
+              }
+            }
+          },
+          menuItems: [
+            DrawerMenuItem(
+              title: "Users",
+              icon: Icons.group,
+              onTap: () {
+                Navigator.pushNamed(context, '/usertable', arguments: []);
+              },
+            ),
+            DrawerMenuItem(
+              title: "Dashboard",
+              icon: Icons.dashboard,
+              onTap: () {
+                Navigator.pushNamed(context, '/dashboard', arguments: []);
+              },
+            ),
+          ],
+          logoutCallback: () {},
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Row(
+                    children: [
+                      Container(
+                        height: 50,
+                        width: 500,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.grey),
+                        ),
+                        child: TextField(
+                          onChanged: (filter) {
+                            context
+                                .read<TransactionProvider>()
+                                .searchTransactions(filter);
+                          },
+                          decoration: InputDecoration(
+                            labelText: 'Search Transactions',
+                            border: InputBorder.none,
+                            prefixIcon: Icon(Icons.search),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      ElevatedButton(
+                        onPressed: _showCalendar,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xff7b1113),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                        ),
+                        child: Text(
+                          "Pick a date range",
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 20),
+                _buildSummaryCards(),
+                SizedBox(height: 30),
+                _buildTransactionTable(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
