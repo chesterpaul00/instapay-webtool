@@ -141,22 +141,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _filterTransactionsByDate(DateTime? singleDate, PickerDateRange? dateRange) {
     setState(() {
       if (singleDate != null) {
-        // Filter for single date
-        _filteredTransactions = _allTransactions.where((transaction) {
-          return transaction.transactionDateTime.isAtSameMomentAs(singleDate);
+        // Filter transactions by single date
+        _filteredTransactions = _transactions.where((transaction) {
+          final DateTime transactionDate = DateTime.parse(transaction.transactionDate);
+          return transactionDate.year == singleDate.year &&
+              transactionDate.month == singleDate.month &&
+              transactionDate.day == singleDate.day;
         }).toList();
       } else if (dateRange != null) {
-        // Filter for date range
-        _filteredTransactions = _allTransactions.where((transaction) {
-          return transaction.transactionDateTime.isAfter(dateRange.startDate!.subtract(Duration(days: 1))) &&
-              transaction.transactionDateTime.isBefore(dateRange.endDate!.add(Duration(days: 1)));
+        // Filter transactions by date range
+        _filteredTransactions = _transactions.where((transaction) {
+          final DateTime transactionDate = DateTime.parse(transaction.transactionDate);
+          return transactionDate.isAfter(dateRange.startDate!) &&
+              transactionDate.isBefore(dateRange.endDate!);
         }).toList();
       } else {
-        // No filter applied, show all transactions
-        _filteredTransactions = List.from(_allTransactions);
+        // If no filter applied, reset to show all transactions
+        _filteredTransactions = List.from(_transactions);
       }
+
+      // Sort transactions in ascending order by date
+      _filteredTransactions.sort((a, b) {
+        final DateTime dateA = DateTime.parse(a.transactionDate);
+        final DateTime dateB = DateTime.parse(b.transactionDate);
+        return dateA.compareTo(dateB);
+      });
+
+      _currentPage = 1; // Reset to the first page after filtering
+      _totalPages = (_filteredTransactions.length / _itemsPerPage).ceil(); // Recalculate total pages
     });
   }
+
 
   void _searchTransactions(String filter) {
     setState(() {
@@ -172,8 +187,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _totalPages = (_filteredTransactions.length / _itemsPerPage).ceil();
     });
   }
-
-
 
   Widget _buildSummaryCards() {
     return Center(
@@ -690,8 +703,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       child: ElevatedButton(
                         onPressed: () {
                           showCalendarDialog(
-                            context, _filterTransactionsByDate
-                          ); // Call the external dialog function
+                            context,
+                            _filterTransactionsByDate, // Pass the filter function
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xff7b1113),
@@ -703,9 +717,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.calendar_today, color: Colors.white),
-                            SizedBox(
-                                width:
-                                    8), // Add spacing between the icon and text
+                            SizedBox(width: 8),
                             Text(
                               "Select Date Transaction",
                               style: TextStyle(
@@ -740,3 +752,4 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 }
+

@@ -89,7 +89,6 @@ class _DashboardScreenStateProd extends State<DashboardScreenProd> {
       _showError('Error loading transactions: $e');
     }
   }
-
   // Load current transactions
   Future<void> _loadCurrentTransactions() async {
     setState(() {
@@ -111,7 +110,6 @@ class _DashboardScreenStateProd extends State<DashboardScreenProd> {
       _showError('Error loading transactions: $e');
     }
   }
-
   // Process and sort the fetched transactions
   void _processTransactions(List<instapayModelProd> transactions) {
     transactions.sort((a, b) {
@@ -127,7 +125,6 @@ class _DashboardScreenStateProd extends State<DashboardScreenProd> {
       _totalPages = (transactions.length / _itemsPerPage).ceil();
     });
   }
-
   // Show error message to the user
   void _showError(String message) {
     if (mounted) {
@@ -161,21 +158,33 @@ class _DashboardScreenStateProd extends State<DashboardScreenProd> {
     setState(() {
       if (singleDate != null) {
         // Filter transactions by single date
-        _filteredTransactions = _allTransactions.where((transaction) {
-          DateTime transactionDate = DateTime.parse(transaction.transactionDate);
-          return transactionDate.isAtSameMomentAs(singleDate);
+        _filteredTransactions = _transactions.where((transaction) {
+          final DateTime transactionDate = DateTime.parse(transaction.transactionDate);
+          return transactionDate.year == singleDate.year &&
+              transactionDate.month == singleDate.month &&
+              transactionDate.day == singleDate.day;
         }).toList();
       } else if (dateRange != null) {
         // Filter transactions by date range
-        _filteredTransactions = _allTransactions.where((transaction) {
-          DateTime transactionDate = DateTime.parse(transaction.transactionDate);
-          return transactionDate.isAfter(dateRange.startDate!.subtract(Duration(days: 1))) &&
-              transactionDate.isBefore(dateRange.endDate!.add(Duration(days: 1)));
+        _filteredTransactions = _transactions.where((transaction) {
+          final DateTime transactionDate = DateTime.parse(transaction.transactionDate);
+          return transactionDate.isAfter(dateRange.startDate!) &&
+              transactionDate.isBefore(dateRange.endDate!);
         }).toList();
       } else {
-        // No filter applied, show all transactions
-        _filteredTransactions = List.from(_allTransactions);
+        // If no filter applied, reset to show all transactions
+        _filteredTransactions = List.from(_transactions);
       }
+
+      // Sort transactions in ascending order by date
+      _filteredTransactions.sort((a, b) {
+        final DateTime dateA = DateTime.parse(a.transactionDate);
+        final DateTime dateB = DateTime.parse(b.transactionDate);
+        return dateA.compareTo(dateB);
+      });
+
+      _currentPage = 1; // Reset to the first page after filtering
+      _totalPages = (_filteredTransactions.length / _itemsPerPage).ceil(); // Recalculate total pages
     });
   }
 
@@ -684,7 +693,10 @@ class _DashboardScreenStateProd extends State<DashboardScreenProd> {
                       height: 50,
                       child: ElevatedButton(
                         onPressed: () {
-                          showCalendarDialog(context, _filterTransactionsByDate); // Call the external dialog function
+                          showCalendarDialog(
+                            context,
+                            _filterTransactionsByDate, // Pass the filter function
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xff7b1113),
@@ -696,9 +708,7 @@ class _DashboardScreenStateProd extends State<DashboardScreenProd> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.calendar_today, color: Colors.white),
-                            SizedBox(
-                                width:
-                                8), // Add spacing between the icon and text
+                            SizedBox(width: 8),
                             Text(
                               "Select Date Transaction",
                               style: TextStyle(

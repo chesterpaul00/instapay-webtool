@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 
-void showCalendarDialog(BuildContext context, Function(DateTime? singleDate, PickerDateRange? dateRange) onDateFilter) {
+// Filter function callback: Use this in the parent widget
+void showCalendarDialog(
+    BuildContext context,
+    Function(DateTime? singleDate, PickerDateRange? dateRange) onDateFilter,
+    {Function(DateTime? singleDate, PickerDateRange? dateRange)? filterFunction}) {
   DateRangePickerSelectionMode selectionMode = DateRangePickerSelectionMode.single;
   DateTime? selectedSingleDate;
   PickerDateRange? selectedRange;
@@ -66,6 +70,8 @@ void showCalendarDialog(BuildContext context, Function(DateTime? singleDate, Pic
                               if (mode != null) {
                                 setState(() {
                                   selectionMode = mode;
+                                  selectedSingleDate = null;
+                                  selectedRange = null;
                                 });
                               }
                             },
@@ -108,6 +114,10 @@ void showCalendarDialog(BuildContext context, Function(DateTime? singleDate, Pic
                       ),
                       ElevatedButton(
                         onPressed: () {
+                          // Call the passed filterFunction if provided
+                          if (filterFunction != null) {
+                            filterFunction(selectedSingleDate, selectedRange);
+                          }
                           onDateFilter(selectedSingleDate, selectedRange);
                           Navigator.pop(context);
                         },
