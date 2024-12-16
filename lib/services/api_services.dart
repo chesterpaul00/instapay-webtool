@@ -15,6 +15,21 @@ class ApiService {
   static const String ipsParticipantsUrl = 'https://cmrbuatconnectivity02.fortress-asya.com/api/v1/ips/fdsap/IpsParticipants';
   static const String kPlusUrl = 'https://dev-api-janus.fortress-asya.com:8114/getFailedTransaction';
 
+  // Helper method to handle retries
+  static Future<http.Response> _fetchWithRetry(Uri url, {int retries = 3, Duration delay = const Duration(seconds: 2)}) async {
+    int attempt = 0;
+    while (attempt < retries) {
+      try {
+        return await http.get(url).timeout(Duration(seconds: 30));  // Increased timeout
+      } catch (e) {
+        if (attempt == retries - 1) rethrow;  // If max retries are reached, throw exception
+        attempt++;
+        await Future.delayed(delay);  // Wait before retrying
+      }
+    }
+    throw Exception('Failed to fetch after $retries attempts');
+  }
+
   // Login service
   static Future<http.Response?> login(String username, String password) async {
     final url = Uri.parse(baseUrl);
@@ -34,7 +49,13 @@ class ApiService {
     });
 
     try {
-      final response = await http.post(url, headers: headers, body: body).timeout(Duration(seconds: 10));
+      print("Login Request URL: $url");
+      print("Request Body: $body");
+
+      final response = await http.post(url, headers: headers, body: body).timeout(Duration(seconds: 30));  // Increased timeout
+
+      print("Login Response Status: ${response.statusCode}");
+      print("Login Response Body: ${response.body}");
 
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
@@ -62,11 +83,16 @@ class ApiService {
         'endDate': endDate,
       };
 
+      print("Instapay Request Body: $body");
+
       final response = await http.post(
         Uri.parse(instapayUrl),
         body: json.encode(body),
         headers: {'Content-Type': 'application/json'},
-      ).timeout(Duration(seconds: 10));
+      ).timeout(Duration(seconds: 30));  // Increased timeout
+
+      print("Instapay Response Status: ${response.statusCode}");
+      print("Instapay Response Body: ${response.body}");
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
@@ -89,11 +115,16 @@ class ApiService {
         'endDate': endDate,
       };
 
+      print("Instapay Prod Request Body: $body");
+
       final response = await http.post(
         Uri.parse(instapayProdUrl),
         body: json.encode(body),
         headers: {'Content-Type': 'application/json'},
-      ).timeout(Duration(seconds: 10));
+      ).timeout(Duration(seconds: 30));  // Increased timeout
+
+      print("Instapay Prod Response Status: ${response.statusCode}");
+      print("Instapay Prod Response Body: ${response.body}");
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
@@ -119,7 +150,10 @@ class ApiService {
     });
 
     try {
-      final response = await http.post(url, headers: headers, body: body).timeout(Duration(seconds: 10));
+      final response = await http.post(url, headers: headers, body: body).timeout(Duration(seconds: 30));  // Increased timeout
+
+      print("Register Response Status: ${response.statusCode}");
+      print("Register Response Body: ${response.body}");
 
       if (response.statusCode == 201) {
         final jsonResponse = jsonDecode(response.body);
@@ -162,7 +196,10 @@ class ApiService {
     };
 
     try {
-      final response = await http.get(url, headers: headers).timeout(Duration(seconds: 10));
+      final response = await http.get(url, headers: headers).timeout(Duration(seconds: 30));  // Increased timeout
+
+      print("Get Users Response Status: ${response.statusCode}");
+      print("Get Users Response Body: ${response.body}");
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
@@ -187,7 +224,10 @@ class ApiService {
       final response = await http.get(
         Uri.parse(ipsParticipantsUrl),
         headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-      ).timeout(Duration(seconds: 10));
+      ).timeout(Duration(seconds: 30));  // Increased timeout
+
+      print("IPS Participants Response Status: ${response.statusCode}");
+      print("IPS Participants Response Body: ${response.body}");
 
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
@@ -209,7 +249,7 @@ class ApiService {
     try {
       print('API Request URL: $url'); // Log the full API URL being requested
 
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));  // Increased timeout
 
       print('Response Status Code: ${response.statusCode}'); // Log the status code
       print('Response Body: ${response.body}'); // Log the full response body
@@ -244,7 +284,4 @@ class ApiService {
       throw Exception('Failed to load KPlus data: $e');
     }
   }
-
-
-
 }
