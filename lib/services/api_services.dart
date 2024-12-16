@@ -2,138 +2,114 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:instapay_webtool_provider_test/models/transaction_model_prod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/ips_model.dart';
+import '../models/kPlus_model.dart';
 import '../models/transaction_model.dart';
+import '../models/transaction_model_prod.dart';
 
 class ApiService {
   static const String baseUrl = "https://dev-api-janus.fortress-asya.com:18005/api/auth/signin";
+  static const String instapayUrl = 'https://cmrbuatconnectivity02.fortress-asya.com/api/v1/ips/fdsap/joining_cttransact_into_reasoncode';
+  static const String instapayProdUrl = 'https://dev-api-janus.fortress-asya.com:18016/JoiningCTTransactIntoReasonCodeProd';
+  static const String ipsParticipantsUrl = 'https://cmrbuatconnectivity02.fortress-asya.com/api/v1/ips/fdsap/IpsParticipants';
+  static const String kPlusUrl = 'https://dev-api-janus.fortress-asya.com:8114/getFailedTransaction';
 
   // Login service
   static Future<http.Response?> login(String username, String password) async {
     final url = Uri.parse(baseUrl);
 
-    // Updated headers including the new ones
     final headers = {
       'Content-Type': 'application/json',
-      'deviceId': 'ABC12345671', // Replace with actual deviceId
-      'deviceModel': 'POSTMAN', // Replace with actual device model
-      'fcmToken': 'fcmToken123', // Replace with actual FCM token
-      'osVersion': '1', // Replace with actual OS version
-      'appVersion': '1.0.1', // Replace with actual app version
+      'deviceId': 'ABC12345671',
+      'deviceModel': 'POSTMAN',
+      'fcmToken': 'fcmToken123',
+      'osVersion': '1',
+      'appVersion': '1.0.1',
     };
 
-    // Request body (username and password)
     final body = jsonEncode({
       'username': username,
       'password': password,
     });
 
     try {
-      final response = await http.post(url, headers: headers, body: body);
+      final response = await http.post(url, headers: headers, body: body).timeout(Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
-        String token = jsonDecode(response.body)['accessToken'];
+        String token = jsonResponse['accessToken'];
 
-        // Check for successful login response (based on the API's expected response)
-        // Save username and access token to SharedPreferences
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('username', username);
-        await prefs.setString('accessToken', jsonResponse['accessToken']);
+        await prefs.setString('accessToken', token);
 
         return response;
-            }
+      } else {
+        throw Exception('Login failed: ${response.statusCode}');
+      }
     } catch (e) {
       print("Error during login: $e");
+      rethrow;
     }
-
-    return null; // Login failed
   }
 
-  // Fetch transactions data
-  static Future<List<instapayModel>> fetchInstapay({
-    required String startDate,
-    required String endDate,
-  }) async {
+  // Fetch transactions (Instapay)
+  static Future<List<instapayModel>> fetchInstapay({required String startDate, required String endDate}) async {
     try {
       final Map<String, String> body = {
-        if (startDate.isNotEmpty) 'startDate': startDate,
-        if (endDate.isNotEmpty) 'endDate': endDate,
+        'startDate': startDate,
+        'endDate': endDate,
       };
 
       final response = await http.post(
-        Uri.parse(
-            'https://cmrbuatconnectivity02.fortress-asya.com/api/v1/ips/fdsap/joining_cttransact_into_reasoncode'),
+        Uri.parse(instapayUrl),
         body: json.encode(body),
         headers: {'Content-Type': 'application/json'},
-      );
+      ).timeout(Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        if (data.isEmpty) {
-          print('No transactions found for the given date range.');
-          return [];
-        }
-        return data.map((json) => instapayModel.fromJson(json)).toList();
-      } else if (response.statusCode == 404) {
-        final errorResponse = json.decode(response.body);
-        print("Error: ${errorResponse['error']}");
-        return []; // No transactions found
+        return data.isNotEmpty ? data.map((json) => instapayModel.fromJson(json)).toList() : [];
       } else {
-        print("Unexpected response: ${response.statusCode}");
-        throw Exception('Failed to fetch transactions. Status code: ${response.statusCode}');
+        print("Error fetching transactions: ${response.statusCode}");
+        return [];
       }
     } catch (e) {
-      print('Error fetching transactions: $e');
-      rethrow; // Re-throw the exception to be handled by the caller
+      print("Error fetching transactions: $e");
+      rethrow;
     }
   }
 
-  //prod
-  static Future<List<instapayModelProd>> fetchInstapayProd({
-    required String startDate,
-    required String endDate,
-  }) async {
+  // Fetch transactions (Instapay Prod)
+  static Future<List<instapayModelProd>> fetchInstapayProd({required String startDate, required String endDate}) async {
     try {
       final Map<String, String> body = {
-        if (startDate.isNotEmpty) 'startDate': startDate,
-        if (endDate.isNotEmpty) 'endDate': endDate,
+        'startDate': startDate,
+        'endDate': endDate,
       };
 
       final response = await http.post(
-        Uri.parse(
-            'https://dev-api-janus.fortress-asya.com:18016/JoiningCTTransactIntoReasonCodeProd'),
+        Uri.parse(instapayProdUrl),
         body: json.encode(body),
         headers: {'Content-Type': 'application/json'},
-      );
+      ).timeout(Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-        if (data.isEmpty) {
-          print('No transactions found for the given date range.');
-          return [];
-        }
-        return data.map((json) => instapayModelProd.fromJson(json)).toList();
-      } else if (response.statusCode == 404) {
-        final errorResponse = json.decode(response.body);
-        print("Error: ${errorResponse['error']}");
-        return []; // No transactions found
+        return data.isNotEmpty ? data.map((json) => instapayModelProd.fromJson(json)).toList() : [];
       } else {
-        print("Unexpected response: ${response.statusCode}");
-        throw Exception('Failed to fetch transactions. Status code: ${response.statusCode}');
+        print("Error fetching transactions: ${response.statusCode}");
+        return [];
       }
     } catch (e) {
-      print('Error fetching transactions: $e');
-      rethrow; // Re-throw the exception to be handled by the caller
+      print("Error fetching transactions: $e");
+      rethrow;
     }
   }
-
 
   // Register service
-  static Future<void> register(BuildContext context, String username,
-      String password, String selectedRole) async {
+  static Future<void> register(BuildContext context, String username, String password, String selectedRole) async {
     final url = Uri.parse('$baseUrl/register');
     final headers = {'Content-Type': 'application/json'};
     final body = jsonEncode({
@@ -143,7 +119,7 @@ class ApiService {
     });
 
     try {
-      final response = await http.post(url, headers: headers, body: body);
+      final response = await http.post(url, headers: headers, body: body).timeout(Duration(seconds: 10));
 
       if (response.statusCode == 201) {
         final jsonResponse = jsonDecode(response.body);
@@ -152,12 +128,10 @@ class ApiService {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(jsonResponse['message'])),
           );
-          Navigator.pop(context); // Navigate back to login screen
+          Navigator.pop(context);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content:
-                Text(jsonResponse['message'] ?? "Registration failed")),
+            SnackBar(content: Text(jsonResponse['message'] ?? "Registration failed")),
           );
         }
       } else {
@@ -175,7 +149,7 @@ class ApiService {
   // Get users service
   static Future<List<dynamic>> getUsers() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? token = prefs.getString('token');
+    final String? token = prefs.getString('accessToken');
 
     if (token == null) {
       throw Exception('No token found. Please login again.');
@@ -188,11 +162,10 @@ class ApiService {
     };
 
     try {
-      final response = await http.get(url, headers: headers);
+      final response = await http.get(url, headers: headers).timeout(Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
-
         if (jsonResponse['data'] is List) {
           return List.from(jsonResponse['data']);
         } else {
@@ -201,43 +174,77 @@ class ApiService {
       } else if (response.statusCode == 401) {
         throw Exception('Unauthorized. Please login again.');
       } else {
-        throw Exception('Failed to load users');
+        throw Exception('Failed to load users: ${response.statusCode}');
       }
     } catch (e) {
       throw Exception('Error: $e');
     }
   }
 
-
-  //IPS services
-
+  // Fetch IPS participants
   static Future<List<IpsParticipant>> fetchIPSParticipants() async {
     try {
       final response = await http.get(
-        Uri.parse(
-            'https://cmrbuatconnectivity02.fortress-asya.com/api/v1/ips/fdsap/IpsParticipants'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      );
+        Uri.parse(ipsParticipantsUrl),
+        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+      ).timeout(Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        print("===============================");
-        print("SUCESS FETCHING IPS PARTICIPANTS");
-        print("===============================");
         List<dynamic> data = json.decode(response.body);
-        List<IpsParticipant> participants =
-        data.map((e) => IpsParticipant.fromJson(e)).toList();
-        return participants;
+        return data.map((e) => IpsParticipant.fromJson(e)).toList();
       } else {
-        print(
-            "Error fetching participants: Status code ${response.statusCode}");
-        throw Exception('Failed to load data: ${response.statusCode}');
+        throw Exception('Failed to load IPS participants: ${response.statusCode}');
       }
     } catch (e) {
-      print("Error fetching participants: $e");
-      throw Exception('Failed to load data: $e');
+      throw Exception('Error fetching IPS participants: $e');
     }
   }
+
+  static Future<List<KPlusModel>> fetchKplus({String date = '', String rangeDate = ''}) async {
+    final String finalDate = date.isEmpty ? '2024-12-16' : date;
+    final String finalRangeDate = rangeDate.isEmpty ? '2024-12-16' : rangeDate;
+
+    final url = '$kPlusUrl?date=$finalDate&range_date=$finalRangeDate';
+
+    try {
+      print('API Request URL: $url'); // Log the full API URL being requested
+
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+
+      print('Response Status Code: ${response.statusCode}'); // Log the status code
+      print('Response Body: ${response.body}'); // Log the full response body
+
+      if (response.statusCode == 200) {
+        final List<dynamic> rawData = json.decode(response.body);
+
+        print('Parsed Data from Response: $rawData'); // Log the parsed raw JSON data
+
+        // Ensure mapping to KPlusModel and log any mapping issues
+        final List<KPlusModel> transactions = rawData
+            .map((json) {
+          try {
+            return KPlusModel.fromJson(json);
+          } catch (e) {
+            print('Error parsing JSON: $json | Error: $e'); // Log problematic JSON
+            return null;
+          }
+        })
+            .whereType<KPlusModel>() // Ensure only valid models are included
+            .toList();
+
+        print('Final Parsed Transactions: $transactions'); // Log the successfully parsed models
+
+        return transactions;
+      } else {
+        print('API Error: ${response.statusCode} | Body: ${response.body}'); // Log non-200 responses
+        throw Exception('Failed to load KPlus data: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Exception during API call: $e'); // Log any exceptions thrown during the API call
+      throw Exception('Failed to load KPlus data: $e');
+    }
+  }
+
+
+
 }

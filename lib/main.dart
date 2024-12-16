@@ -7,6 +7,7 @@ import 'package:instapay_webtool_provider_test/screens/ips_screen.dart';
 import 'package:instapay_webtool_provider_test/screens/user_table.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/dashboard_screen_prod.dart';
+import 'screens/kplus_screen.dart';
 import 'screens/login_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -55,6 +56,7 @@ class MyApp extends StatelessWidget {
           "/usertable": (context) => UserTableScreen(),
           "/ipstable": (context) => IpsScreen(),
           "/dashboardprod": (context) => DashboardScreenProd(),
+          "/kplus": (context) => KplusScreen(),
         },
       ),
     );

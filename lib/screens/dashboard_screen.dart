@@ -172,7 +172,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-
   void _searchTransactions(String filter) {
     setState(() {
       if (filter.isEmpty) {
@@ -657,6 +656,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: Icons.dashboard,
             onTap: () {
               Navigator.pushNamed(context, '/dashboardprod', arguments: _users);
+            },
+          ),
+          DrawerMenuItem(
+            title: "kPlus",
+            icon: Icons.dashboard,
+            onTap: () {
+              Navigator.pushNamed(context, '/kplus', arguments: _users);
             },
           ),
         ],
