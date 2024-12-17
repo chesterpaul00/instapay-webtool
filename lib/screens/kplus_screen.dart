@@ -5,6 +5,7 @@ import '../services/api_services.dart';
 import '../widgets/custom_appbar.dart';
 import '../widgets/custom_drawer.dart';
 import '../widgets/kplus_table.dart';
+import '../widgets/search_bar.dart';
 
 class KplusScreen extends StatefulWidget {
   const KplusScreen({super.key});
@@ -20,6 +21,7 @@ class _KplusScreenState extends State<KplusScreen> {
   bool _isLoading = false;
   int _currentPage = 1;
   int _totalPages = 1;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -34,13 +36,16 @@ class _KplusScreenState extends State<KplusScreen> {
     setState(() {
       _username = prefs.getString('username') ?? 'Guest';
     });
+    print('Loaded username: $_username');
   }
 
   /// Fetch transactions from the API
   Future<void> _fetchTransactions() async {
     setState(() => _isLoading = true);
     try {
-      final fetchedTransactions = await ApiService.fetchKplus();
+      final fetchedTransactions = await ApiService.fetchKplus(startDate: '', endDate: '');
+      print('Fetched transactions: $fetchedTransactions');
+
       setState(() {
         _transactions.clear();
         _transactions.addAll(fetchedTransactions);
@@ -48,10 +53,29 @@ class _KplusScreenState extends State<KplusScreen> {
         _totalPages = (_filteredTransactions.isEmpty) ? 1 : (_filteredTransactions.length / 10).ceil();
       });
     } catch (e) {
+      print('Error fetching transactions: $e');
       _showErrorSnackbar('Failed to load transactions. Please try again.');
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  /// Filter transactions based on search query
+  void _filterTransactions(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        _filteredTransactions = _transactions;
+      } else {
+        _filteredTransactions = _transactions
+            .where((transaction) =>
+        transaction.accountNumber?.toLowerCase().contains(query.toLowerCase()) ?? false ||
+            transaction.trnType!.toLowerCase().contains(query.toLowerCase()) ?? false)
+            .toList();
+      }
+      _currentPage = 1;
+      _totalPages = (_filteredTransactions.isEmpty) ? 1 : (_filteredTransactions.length / 10).ceil();
+    });
+    print('Filtered transactions: $_filteredTransactions');
   }
 
   /// Show error snackbar
@@ -88,11 +112,13 @@ class _KplusScreenState extends State<KplusScreen> {
   /// Pagination logic: Go to previous page
   void _goToPreviousPage() {
     if (_currentPage > 1) setState(() => _currentPage--);
+    print('Navigated to previous page: $_currentPage');
   }
 
   /// Pagination logic: Go to next page
   void _goToNextPage() {
     if (_currentPage < _totalPages) setState(() => _currentPage++);
+    print('Navigated to next page: $_currentPage');
   }
 
   /// Dummy export to CSV functionality
@@ -106,6 +132,9 @@ class _KplusScreenState extends State<KplusScreen> {
     final startIndex = (_currentPage - 1) * 10;
     final endIndex = (_currentPage * 10).clamp(0, _filteredTransactions.length);
     final paginatedTransactions = _filteredTransactions.sublist(startIndex, endIndex);
+
+    print('Paginated transactions: $paginatedTransactions');
+    print('Start index: $startIndex, End index: $endIndex');
 
     return Scaffold(
       appBar: CustomAppBar(
@@ -123,7 +152,8 @@ class _KplusScreenState extends State<KplusScreen> {
           DrawerMenuItem(title: "IPS Participants", icon: Icons.group, onTap: () => Navigator.pushNamed(context, '/ipstable')),
           DrawerMenuItem(title: "Dashboard Prod", icon: Icons.dashboard, onTap: () => Navigator.pushNamed(context, '/dashboardprod')),
           DrawerMenuItem(title: "kPlus", icon: Icons.dashboard, onTap: () => Navigator.pushNamed(context, '/kplus')),
-        ], logoutCallback: () {  },
+        ],
+        logoutCallback: () {},
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -133,6 +163,17 @@ class _KplusScreenState extends State<KplusScreen> {
           width: MediaQuery.of(context).size.width,
           child: Column(
             children: [
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Align(
+                  alignment: Alignment.centerLeft, // Align the search bar to the left
+                  child: SizedBox(
+                    width: 400.0, // Set your desired width for the search bar
+                    child: CustomSearchBar(onChanged: _filterTransactions),
+                  ),
+                ),
+              ),
               const SizedBox(height: 16),
               ReusableTransactionTable(
                 columns: const [
@@ -144,7 +185,7 @@ class _KplusScreenState extends State<KplusScreen> {
                   DataColumn(label: Text('Account Number')),
                   DataColumn(label: Text('Reference ID')),
                 ],
-                data: paginatedTransactions.isNotEmpty ? paginatedTransactions : [],
+                data: paginatedTransactions,
                 isLoading: _isLoading,
                 isEmpty: _transactions.isEmpty,
                 currentPage: _currentPage,

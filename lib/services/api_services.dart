@@ -49,13 +49,7 @@ class ApiService {
     });
 
     try {
-      print("Login Request URL: $url");
-      print("Request Body: $body");
-
       final response = await http.post(url, headers: headers, body: body).timeout(Duration(seconds: 30));  // Increased timeout
-
-      print("Login Response Status: ${response.statusCode}");
-      print("Login Response Body: ${response.body}");
 
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
@@ -70,7 +64,6 @@ class ApiService {
         throw Exception('Login failed: ${response.statusCode}');
       }
     } catch (e) {
-      print("Error during login: $e");
       rethrow;
     }
   }
@@ -83,26 +76,19 @@ class ApiService {
         'endDate': endDate,
       };
 
-      print("Instapay Request Body: $body");
-
       final response = await http.post(
         Uri.parse(instapayUrl),
         body: json.encode(body),
         headers: {'Content-Type': 'application/json'},
       ).timeout(Duration(seconds: 30));  // Increased timeout
 
-      print("Instapay Response Status: ${response.statusCode}");
-      print("Instapay Response Body: ${response.body}");
-
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         return data.isNotEmpty ? data.map((json) => instapayModel.fromJson(json)).toList() : [];
       } else {
-        print("Error fetching transactions: ${response.statusCode}");
         return [];
       }
     } catch (e) {
-      print("Error fetching transactions: $e");
       rethrow;
     }
   }
@@ -115,26 +101,19 @@ class ApiService {
         'endDate': endDate,
       };
 
-      print("Instapay Prod Request Body: $body");
-
       final response = await http.post(
         Uri.parse(instapayProdUrl),
         body: json.encode(body),
         headers: {'Content-Type': 'application/json'},
       ).timeout(Duration(seconds: 30));  // Increased timeout
 
-      print("Instapay Prod Response Status: ${response.statusCode}");
-      print("Instapay Prod Response Body: ${response.body}");
-
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         return data.isNotEmpty ? data.map((json) => instapayModelProd.fromJson(json)).toList() : [];
       } else {
-        print("Error fetching transactions: ${response.statusCode}");
         return [];
       }
     } catch (e) {
-      print("Error fetching transactions: $e");
       rethrow;
     }
   }
@@ -151,9 +130,6 @@ class ApiService {
 
     try {
       final response = await http.post(url, headers: headers, body: body).timeout(Duration(seconds: 30));  // Increased timeout
-
-      print("Register Response Status: ${response.statusCode}");
-      print("Register Response Body: ${response.body}");
 
       if (response.statusCode == 201) {
         final jsonResponse = jsonDecode(response.body);
@@ -198,9 +174,6 @@ class ApiService {
     try {
       final response = await http.get(url, headers: headers).timeout(Duration(seconds: 30));  // Increased timeout
 
-      print("Get Users Response Status: ${response.statusCode}");
-      print("Get Users Response Body: ${response.body}");
-
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
         if (jsonResponse['data'] is List) {
@@ -226,9 +199,6 @@ class ApiService {
         headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
       ).timeout(Duration(seconds: 30));  // Increased timeout
 
-      print("IPS Participants Response Status: ${response.statusCode}");
-      print("IPS Participants Response Body: ${response.body}");
-
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
         return data.map((e) => IpsParticipant.fromJson(e)).toList();
@@ -240,47 +210,43 @@ class ApiService {
     }
   }
 
-  static Future<List<KPlusModel>> fetchKplus({String date = '', String rangeDate = ''}) async {
-    final String finalDate = date.isEmpty ? '2024-12-16' : date;
-    final String finalRangeDate = rangeDate.isEmpty ? '2024-12-16' : rangeDate;
-
-    final url = '$kPlusUrl?date=$finalDate&range_date=$finalRangeDate';
+  static Future<List<KPlusModel>> fetchKplus({required String startDate, required String endDate}) async {
+    final url = '$kPlusUrl?start_date=$startDate&end_date=$endDate';
 
     try {
-      print('API Request URL: $url'); // Log the full API URL being requested
-
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));  // Increased timeout
 
-      print('Response Status Code: ${response.statusCode}'); // Log the status code
-      print('Response Body: ${response.body}'); // Log the full response body
-
       if (response.statusCode == 200) {
-        final List<dynamic> rawData = json.decode(response.body);
+        // Print the raw response body for debugging
+        print('Raw response: ${response.body}');
 
-        print('Parsed Data from Response: $rawData'); // Log the parsed raw JSON data
+        final dynamic rawData = json.decode(response.body);
 
-        // Ensure mapping to KPlusModel and log any mapping issues
-        final List<KPlusModel> transactions = rawData
-            .map((json) {
-          try {
-            return KPlusModel.fromJson(json);
-          } catch (e) {
-            print('Error parsing JSON: $json | Error: $e'); // Log problematic JSON
-            return null;
+        // Check if the response is a Map
+        if (rawData is Map) {
+          // Print to see if we have a 'data' field or other fields
+          print('Response is a Map, rawData: $rawData');
+
+          // Check if the Map contains a key for the transaction list (e.g., 'data', 'results')
+          if (rawData.containsKey('data')) {
+            final List<dynamic> data = rawData['data'];
+            return data.map((json) => KPlusModel.fromJson(json)).toList();
+          } else if (rawData.containsKey('results')) {
+            final List<dynamic> data = rawData['results'];
+            return data.map((json) => KPlusModel.fromJson(json)).toList();
+          } else {
+            throw Exception('Expected "data" or "results" field in the response.');
           }
-        })
-            .whereType<KPlusModel>() // Ensure only valid models are included
-            .toList();
-
-        print('Final Parsed Transactions: $transactions'); // Log the successfully parsed models
-
-        return transactions;
+        } else if (rawData is List) {
+          // If the response is directly a List
+          return rawData.map((json) => KPlusModel.fromJson(json)).toList();
+        } else {
+          throw Exception('Unexpected response format');
+        }
       } else {
-        print('API Error: ${response.statusCode} | Body: ${response.body}'); // Log non-200 responses
         throw Exception('Failed to load KPlus data: ${response.statusCode}');
       }
     } catch (e) {
-      print('Exception during API call: $e'); // Log any exceptions thrown during the API call
       throw Exception('Failed to load KPlus data: $e');
     }
   }
